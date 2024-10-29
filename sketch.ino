@@ -1,67 +1,95 @@
 #include <HX711-multi.h>
+#include <EEPROM.h>
 
-// Pins to the load cell amp
-#define CLK A0      // clock pin to the load cell amp
-#define DOUT1 A1    // data pin to the 1st lca
-#define DOUT2 A2    // data pin to the 2nd lca
-#define DOUT3 A3    // data pin to the 3rd lca
-#define DOUT4 A4    // data pin to the 4th lca
-#define DOUT5 A5    // data pin to the 5th lca
-#define DOUT6 2    // data pin to the 6th lca
-#define DOUT7 3    // data pin to the 7th lca
-#define DOUT8 4    // data pin to the 8th lca
+// Pins
+#define CLK A0 // Common clock pin for all HX711 units
+#define DOUT1 A1
+#define DOUT2 A2
+#define DOUT3 A3
+#define DOUT4 A4
 
-#define BOOT_MESSAGE "MIT_ML_SCALE V0.8"
+// Array of data pins
+byte DOUTS[5] = {DOUT1, DOUT2, DOUT3, DOUT4};
 
-#define TARE_TIMEOUT_SECONDS 4
+// Calibration factors for each load cell
+float calibrationFactors[4] = {1.0, 1.0, 1.0, 1.0};
+const int calibrationEEPROMAddress = 0;  // Starting EEPROM address for calibration factors
 
-byte DOUTS[8] = {DOUT1, DOUT2, DOUT3, DOUT4, DOUT5, DOUT6, DOUT7, DOUT8};
+// Number of load cells
+#define CHANNEL_COUNT sizeof(DOUTS) / sizeof(byte)
 
-#define CHANNEL_COUNT sizeof(DOUTS)/sizeof(byte)
-
-long int results[CHANNEL_COUNT];
-
+// Variables
 HX711MULTI scales(CHANNEL_COUNT, DOUTS, CLK);
+long results[CHANNEL_COUNT];
+bool tareComplete = false;
 
 void setup() {
-  Serial.begin(115200);
-  Serial.println(BOOT_MESSAGE);
-  Serial.flush();
-  pinMode(11, OUTPUT);
-  
-  tare();
-}
+  Serial.begin(57600);
+  Serial.println("Starting...");
 
+  tare();  // Tare each load cell before calibration
+  Serial.println("Tare complete.");
 
-void tare() {
-  bool tareSuccessful = false;
-
-  unsigned long tareStartTime = millis();
-  while (!tareSuccessful && millis() < (tareStartTime + TARE_TIMEOUT_SECONDS*1000)) {
-    tareSuccessful = scales.tare(20, 10000);  //reject 'tare' if still ringing
-  }
-}
-
-void sendRawData() {
-  scales.read(results);
-  for (int i=0; i < scales.get_count(); ++i) {;
-    // Grams
-    Serial.println(results[i] / 0.42);  
-    // Serial.print( (i!=scales.get_count()-1)?"\t":"\n");
-  }
-  Serial.println();
-  delay(1000);
+  calibrate();  // Start calibration process
 }
 
 void loop() {
-  sendRawData(); //this is for sending raw data, for where everything else is done in processing
-
-  //on serial data (any data) re-tare
   if (Serial.available() > 0) {
-    while (Serial.available()) {
-      Serial.read();
-    }
-    tare();
+    char command = Serial.read();
+    if (command == 'r') calibrate();
+    if (command == 't') tare();
   }
- 
+}
+
+void tare() {
+  Serial.println("Taring...");
+  while (!scales.tare(20, 10000));  // Tare all load cells
+  Serial.println("Tare complete.");
+  tareComplete = true;
+}
+
+// Calibrate each load cell individually
+void calibrate() {
+  Serial.println("Starting calibration...");
+
+  for (int i = 0; i < CHANNEL_COUNT; i++) {
+    Serial.print("Place known weight on load cell ");
+    Serial.print(i + 1);
+    Serial.println(" and enter the weight (e.g., 100.0): ");
+
+    // Wait for known weight input
+    float knownMass = 0;
+    while (Serial.available() == 0) {}
+    knownMass = Serial.parseFloat();
+    Serial.print("Known weight: ");
+    Serial.println(knownMass);
+
+    // Measure raw data with known weight
+    scales.read(results);
+    long rawValue = results[i];
+    calibrationFactors[i] = rawValue / knownMass;  // Calculate calibration factor
+
+    Serial.print("Calibration factor for load cell ");
+    Serial.print(i + 1);
+    Serial.print(": ");
+    Serial.println(calibrationFactors[i]);
+    
+    // Save calibration factor to EEPROM
+    int address = calibrationEEPROMAddress + (i * sizeof(float));
+    EEPROM.put(address, calibrationFactors[i]);
+    delay(500);
+  }
+
+  Serial.println("Calibration complete.");
+}
+
+void loadCalibrationFromEEPROM() {
+  for (int i = 0; i < CHANNEL_COUNT; i++) {
+    int address = calibrationEEPROMAddress + (i * sizeof(float));
+    EEPROM.get(address, calibrationFactors[i]);
+    Serial.print("Loaded calibration factor for load cell ");
+    Serial.print(i + 1);
+    Serial.print(": ");
+    Serial.println(calibrationFactors[i]);
+  }
 }
