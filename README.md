@@ -54,3 +54,19 @@
 5. Enter 1000 to console
 6. Repeat 4-5
 7. Check correctness of different load cells with different weights
+
+## DONE
+
+### 24_11_06
+
+- Fixed incorrect text after successful calibration.
+- Added confirmation of module calibration value change during calibration.
+- Added more descriptive text to make the setup and output processes easier to understand.
+- Added ability to view and confirm your input in the console.
+
+### 24_10_29
+
+- Adapted everything from source ( https://github.com/olkal/HX711_ADC/blob/master/examples/Calibration/Calibration.ino )
+- except changeSavedCalFactor(manual change of calibration value) and output data only when it changes(smooth data output; will create additional load)
+- Also added some text commands, for convenience
+- In simulation it is not possible to test the operation of the memory module, so whether it works or not, I don't know

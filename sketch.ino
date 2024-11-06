@@ -14,7 +14,6 @@
 #define DOUT6 8
 #define DOUT7 9
 #define DOUT8 10
-// #define DOUT5 A5
 
 #define TARE_TIMEOUT_SECONDS 4
 
@@ -22,8 +21,8 @@
 byte DOUTS[8] = {DOUT1, DOUT2, DOUT3, DOUT4, DOUT5, DOUT6, DOUT7, DOUT8};
 
 // Calibration values for each load cell
-// float calibrationValues[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-float calibrationValues[8] = {0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42};
+float calibrationValues[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
 const int calibrationEEPROMAddress = 0;  // Starting EEPROM address for calibration values
 
 // Number of load cells
@@ -42,72 +41,99 @@ const int calibrationEEPROMAddress = 0;  // Starting EEPROM address for calibrat
 // HX711MULTI(int count, byte *dout, byte pd_sck, byte gain = 128);
 HX711MULTI scales(CHANNEL_COUNT, DOUTS, CLK);
 long results[CHANNEL_COUNT];
-int i = 0;
+int number_of_read = 0;
 
 void setup() {
   Serial.begin(57600);
   Serial.println("Starting setuping...");
+  delay(100);
   // Serial.flush();
   // pinMode(11, OUTPUT);  // For some reason, if you add this pin, the console starts to display the text
-
+  currentCalibrationValues();
   tare();
 
-  // Ask if you want to calibrate, use values from memory, or use default values
-  Serial.println("***");
-  Serial.println("To calibrate load cells, send 'c' from serial monitor");
-  Serial.println("To use load cells calibration values from EEPROM adress, send 'm' from serial monitor");
-  Serial.println("To use default load cells calibration values, send 'd' from serial monitor");
-
   bool _resume = false;
+  char command;
   while (_resume == false) {
-    if (Serial.available() > 0) {
-      char command = Serial.read();
-      switch (command) {
-        case 'c':
-          calibrate(); // Start calibration process
-          _resume = true;
-          break;
-        case 'm':
-          loadCalibrationFromEEPROM();
-          _resume = true;
-          break;
-        case 'd':
-          _resume = true;
-      }
+    // Ask if you want to calibrate, use values from memory, or use default values
+    Serial.println("Commands:");
+    Serial.println("- Send 'c' to change calibration values of load cells");
+    Serial.println("- Send 'm' to load calibration values from EEPROM");
+    Serial.println("- Send 'd' to use default calibration values");
+    
+    while (!Serial.available());
+    command = get_command();
+    if (!to_continue()){
+      continue;
+    }
+
+    switch (command) {
+      case 'c':
+        calibrate();
+        _resume = true;
+        break;
+      case 'm':
+        loadCalibrationFromEEPROM();
+        _resume = true;
+        break;
+      case 'd':
+        Serial.println("Using default calibration values.");
+        currentCalibrationValues();
+        _resume = true;
+        break;
+      default:
+        break;
     }
   }
-  Serial.println("Finishing setuping...");
+  Serial.println("Setup complete. Ready for commands.");
   Serial.println("***");
-  Serial.println("To re-calibrate, send 'c' from serial monitor.");
-  Serial.println("To set the tare offsets, send 't' from serial monitor.");
+  Serial.println("Send 'c' to change calibration values of load cells.");
+  Serial.println("Send 't' to set tare offset for all load cells.");
 }
 
 void loop() {
-  Serial.print("Number of read:");
-  Serial.print(i);
-  Serial.println();
-  sendRawData(); //this is for sending raw data, for where everything else is done in processing
-  i++;
-  delay(1000);
-
   if (Serial.available() > 0) {
-    char command = Serial.read();
-    if (command == 't') tare(); //tare
-    else if (command == 'c') calibrate(); //calibrate
-    // else if (command == 'e') changeSavedCalFactor(); //edit calibration value manually
+    char command = get_command();
+    if (to_continue()){
+      if (command == 't') tare();
+      else if (command == 'c') calibrate();
+      // else if (command == 'e') changeSavedCalFactor(); //edit calibration value manually
+    }
   }
+  Serial.print("Number of read: ");
+  Serial.println(number_of_read);
+  number_of_read++;
+
+  sendCalibratedData();
+
+  delay(1000);
 }
 
-void sendRawData() {
+bool to_continue() {
+  Serial.println("- Continue?(y/n):");
+  while (!Serial.available());
+  return (Serial.read() == 'y');
+}
+
+char get_command(){
+  char command = Serial.read();
+  Serial.print("Your input: '");
+  Serial.print(command);
+  Serial.println("'.");
+  return command;
+}
+
+void sendCalibratedData() {
+  Serial.println("Current calibrated weights:");
   // Serial.println("Before");
   scales.read(results);
   // Serial.println("After");
   for (int i=0; i < scales.get_count(); ++i) {
     // Serial.println("Before");
-    Serial.print(i+1);
-    Serial.print(":");
-    Serial.print(results[i] / calibrationValues[i]);
-    Serial.print("  ");
+    Serial.print(i + 1);
+    Serial.print(": ");
+    Serial.print(results[i] / calibrationValues[i], 4);
+    Serial.print("; ");
     // Serial.println("After");
     // Serial.print( (i!=scales.get_count()-1)?"\t":"\n");
   }
@@ -115,45 +141,67 @@ void sendRawData() {
   Serial.println();
 }
 
+void currentCalibrationValues() {
+  Serial.println("Current calibration values:");
+  for (int i=0; i < scales.get_count(); ++i) {
+    // Serial.println("Before");
+    Serial.print(i + 1);
+    Serial.print(": ");
+    Serial.print(calibrationValues[i], 4);
+    Serial.print("; ");
+    // Serial.print( (i!=scales.get_count()-1)?"\t":"\n");
+  }
+  Serial.println();
+}
+
 void tare() {
   Serial.println("***");
-  Serial.println("Place the load cells an a level stable surface.");
-  Serial.println("Remove any load applied to the load cells.");
-  Serial.println("To set the tare offset, send 't' from serial monitor.");
-  Serial.println("To skip setting tare offset, send 's' from serial monitor.");
-  Serial.println("Current data of load cells:");
-  sendRawData();
+  Serial.println("Start taring");
+  currentCalibrationValues();
+  sendCalibratedData();
+  Serial.println("- Place the load cells an a level stable surface. Remove any load applied to the load cells. After that send 't' to set the tare offset.");
+  // Serial.println("Send 's' to skip setting tare offset.");
 
   bool _resume = false;
   char command;
   while(_resume == false){
     while(!Serial.available());
-    command = Serial.read();
-    if (command == 't') {
-      _resume = true;
-    } 
-    else if (command == 's'){
-      Serial.println("Skipping setting tare offset.");
-      return;
+    command = get_command();
+    if (!to_continue()){
+      Serial.println("- Returned back. Send 't' to continue.");
+      continue;
+    }
+    switch (command) {
+        case 't':
+          sendCalibratedData();
+          _resume = true;
+          break;
+        // case 's':
+        //   Serial.println("Skipping setting tare offset.");
+        //   return;
+        default:
+          // Serial.println("Invalid input. Send 't' to tare or 's' to skip.");
+          Serial.println("Invalid input. Send 't' to set the tare offset.");
     }
   }
-
   Serial.println("Taring...");
   bool tareSuccessful = false;
   // Tare all load cells
   unsigned long tareStartTime = millis();
   while (!tareSuccessful && millis() < (tareStartTime + TARE_TIMEOUT_SECONDS*1000)) {
     // Serial.println("Before");
-    tareSuccessful = scales.tare(20, 10000);  //reject 'tare' if still ringing
+    // if one of the cells fluctuated more than the allowed tolerance(still ringing), reject tare attempt;
+    tareSuccessful = scales.tare(20, 10000);
     // Serial.println("After");
   }
-  if (!tareSuccessful){
-    Serial.println("Timeout, check wiring and pin designations");
-    while (1);
+  if (tareSuccessful){
+    Serial.println("Tare successfully complete.");
+    sendCalibratedData();
+    Serial.println("***");
+  } else {
+    Serial.println("Tare failed. Timeout, check wiring and pin designations.");
+    Serial.println("***");
   }
-  Serial.println("Current data of load cells:");
-  sendRawData();
-  Serial.println("Tare complete.");
 }
 
 // Calibrate each load cell individually
@@ -165,73 +213,104 @@ void calibrate() {
   //   }
   // }
   Serial.println("***");
-  Serial.println("Start calibration:");
+  Serial.println("Starting calibration...");
 
   tare();
 
   for (int i = 0; i < CHANNEL_COUNT; i++) {
+    Serial.println();
     Serial.print("Calibrating ");
     Serial.print(i + 1);
-    Serial.print(" load cell. To skip calibrating of this load cell and use previous calibrating value, send 's'. To continue, send any");
+    Serial.println(" load cell.");
+    
+    Serial.print("- Send 's' to skip calibrating of this load cell and use previous calibrating value(");
+    Serial.print(calibrationValues[i], 4);
+    Serial.println("). To continue calibrating, send any");
 
     char command;
     while (!Serial.available());
-    command = Serial.read();
-    if (command == 's') continue;
-
-    Serial.print("Place known weight on load cell ");
-    Serial.print(i + 1);
-    Serial.println(" and enter the weight (in grams)(e.g., 100.0): ");
+    command = get_command();
+    if (command == 's') {
+      continue;
+    }
 
     // Wait for known weight input
+    float calibrationValue = 1;
     float knownMass = 0;
-    boolean _resume = false;
+    bool _resume = false;
     while (_resume == false) {
+      Serial.println();
+      Serial.print("- Place known weight(object) on load cell ");
+      Serial.print(i + 1);
+      Serial.println(" and enter this weight (if your object is 1kg and you want to get data in grams then enter weight in grams, e.g., 1000, if you need kg - send 1, etc.)(known weight must be > 0): ");
       // scales.read(results);
       while(!Serial.available());
       
       knownMass = Serial.parseFloat();
       if (knownMass != 0){
         Serial.print("Known weight: ");
-        Serial.println(knownMass);
+        Serial.println(knownMass, 4);
+        // Measure raw data with known weight
+        scales.read(results);
+        long loadValue = results[i];
+        Serial.print("Not calibrated weight on this load cell: ");
+        Serial.println(loadValue);
 
-        Serial.println("Continue(y/n):");
+        // Do not save calculated calibration value to calibrationValues array because it may be incorrect
+        calibrationValue = loadValue / knownMass;  // Calculate calibration value
+        Serial.print("Calibration value for this load cell: ");
+        Serial.println(calibrationValue, 4);
+        Serial.print("Calibrated weight of this load cell(if it correct calculated then must be equal to known mass): ");
+        Serial.println(loadValue / calibrationValue, 4);
+
+        Serial.println("- Continue(y/n):");
         while (!Serial.available());
-        command = Serial.read();
+        command = get_command();
         if (command == 'y'){
           _resume = true;
-        } else {
-          Serial.print("Place known weight on load cell ");
-          Serial.print(i + 1);
-          Serial.println(" and enter the weight (in grams)(e.g., 100.0): ");
         }
-          // TODO: Maybe add isnan check here
+      } else {
+        Serial.print("Failed to set known weight. Returned back. Known weight must be > 0");
       }
     }
 
-    // Measure raw data with known weight
-    scales.read(results);
-    long rawValue = results[i];
-    calibrationValues[i] = rawValue / knownMass;  // Calculate calibration value
-    // // calibrationValues cant be 0
-    if (isnan(calibrationValues[i]) || calibrationValues[i] == 0){
-      calibrationValues[i] = 1;
-    }
+    // // Measure raw data with known weight
+    // scales.read(results);
+    // long loadValue = results[i];
+    // Serial.print("Not calibrated weight on this load cell: ");
+    // Serial.println(loadValue);
 
-    Serial.print("Calibration value for load cell ");
-    Serial.print(i + 1);
-    Serial.print(": ");
-    Serial.println(calibrationValues[i]);
+    // // Do not save calculated calibration value to calibrationValues array because it may be incorrect
+    // float calibrationValue = loadValue / knownMass;  // Calculate calibration value
+    // Serial.print("Calibration value for this load cell: ");
+    // Serial.println(calibrationValue, 4);
+    // Serial.print("Calibrated weight of this load cell(if it correct calculated then must be equal to known mass): ");
+    // Serial.println(loadValue / calibrationValue, 4);
+    // calibrationValues cant be 0
+    // if (isnan(calibrationValues[i]) || calibrationValues[i] == 0){
+    //   calibrationValues[i] = 1;
+    // }
+    // Serial.print("Recalibrate this load cell(y/any):");
+    // while (!Serial.available());
+    // command = get_command();
+    // if (command == 'y') {
+    //   i--;
+    //   continue;
+    // }
+
+    calibrationValues[i] = calibrationValue;
     
     int address = calibrationEEPROMAddress + (i * sizeof(float));
-    Serial.print("Save this value to EEPROM adress ");
-    Serial.print(address);
-    Serial.println("? y/n");
 
     _resume = false;
     while (_resume == false) {
+      Serial.print("- Save ");
+      Serial.print(calibrationValues[i]);
+      Serial.print(" value to EEPROM adress ");
+      Serial.print(address);
+      Serial.println("?(y/n)");
       while (!Serial.available());
-      command = Serial.read();
+      command = get_command();
       if (command == 'y') {
 // #if defined(ESP8266)|| defined(ESP32)
 //         EEPROM.begin(512);
@@ -243,7 +322,7 @@ void calibrate() {
 // #endif
         EEPROM.get(address, calibrationValues[i]);
         Serial.print("Value ");
-        Serial.print(calibrationValues[i]);
+        Serial.print(calibrationValues[i], 4);
         Serial.print(" saved to EEPROM address: ");
         Serial.println(address);
         _resume = true;
@@ -256,6 +335,7 @@ void calibrate() {
   }
 
   Serial.println("End calibration");
+  currentCalibrationValues();
   Serial.println("***");
   delay(500);
 }
