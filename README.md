@@ -2,21 +2,12 @@
 
 ## TODO
 
-- [x] Check "c" command
-    - [x] Check save to memory
-    - [x] Check not save to memory
-- [x] Check "m" command
-- [x] Check "d" command
-
-- [x] Check "t" command
-- [x] Check "c" command
-- [x] Check if user can send nan from serial monitor while calibrating. User cant send nan
-
 ## BUGS
 
 - [x] If 0 passed to calibration then nan is saved. FIXED: do not allow enter 0 as known mass
 - [ ] CRITICAL(I cant repeat it more then 3 times while tests): Simulation stops while changing weight on load cells
 - [ ] CRITICAL(I cant repeat it more then 1 times while tests): Simulation stop while re-taring
+- [ ] CRITICAL(I cant repeat it more then 1 times while tests): Simulation stop after calibration
 
 ## MAYBE TODO
 
@@ -56,6 +47,31 @@
 7. Check correctness of different load cells with different weights
 
 ## DONE
+
+### 24_11_25
+
+- [x] Check "c" command
+    - [x] Check save to memory
+    - [x] Check not save to memory
+- [x] Check "m" command
+- [x] Check "d" command
+- [x] Check "t" command
+- [x] Check "c" command
+- [x] Check if user can send nan from serial monitor while calibrating. User cant send nan
+
+- Added descriptive comments
+- Changed type of number_of_read from int to uint32_t
+- Added static strings (F()) to store constant data in flash memory and free up RAM
+- Removed taring at the start of program execution
+- Added descriptive, warning and error messages to user
+- Added commented function as option to get commands from user
+- Changed get_command function: added input check to not get '\n', ' ' and '\r' chars as command
+- Changed "bool to_continue(bool question)" function: bool question is used to send or no "Continue?" message to user
+- Changed sendCalibratedData: Decreased number of digits after dot in output to monitor of calibrated weight, to possibly decrease chance of program block(critical bug)
+- Changed calibrate function:
+    - Commented skip of load cell calibration to reduce steps of calibration for user
+    - Added check of inputed knownWeight so it is always not equal to 0
+    - Added check of calibrated weight with isnan to assure that calibration value is correctly calculated
 
 ### 24_11_06
 
