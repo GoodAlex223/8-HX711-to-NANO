@@ -8,22 +8,22 @@
 #define CLK 2 // Common clock pin for all HX711 units
 #define DOUT1 3
 #define DOUT2 4
-#define DOUT3 5
-#define DOUT4 6
-#define DOUT5 7
-#define DOUT6 8
-#define DOUT7 9
-#define DOUT8 10
+// #define DOUT3 5
+// #define DOUT4 6
+// #define DOUT5 7
+// #define DOUT6 8
+// #define DOUT7 9
+// #define DOUT8 10
 
 #define TARE_TIMEOUT_SECONDS 4
 
 // Array of data pins
-byte DOUTS[8] = {DOUT1, DOUT2, DOUT3, DOUT4, DOUT5, DOUT6, DOUT7, DOUT8};
-// byte DOUTS[2] = {DOUT1, DOUT2};
+// byte DOUTS[8] = {DOUT1, DOUT2, DOUT3, DOUT4, DOUT5, DOUT6, DOUT7, DOUT8};
+byte DOUTS[2] = {DOUT1, DOUT2};
 
 // Calibration values for each load cell
-float calibrationValues[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-// float calibrationValues[2] = {1.0, 1.0};
+// float calibrationValues[8] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+float calibrationValues[2] = {1.0, 1.0};
 // float calibrationValues[2] = {0.6667, 17492.8339};
 // float calibrationValues[8] = {0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42, 0.42};
 const int calibrationEEPROMAddress = 0;  // Starting EEPROM address for calibration values
@@ -52,18 +52,24 @@ uint32_t number_of_read = 0;
 // #define BUFFER_SIZE 64
 
 void setup() {
+  // Higher volumes of data or frequent calls to Serial.print can cause delays in the program, 
+  // especially at low baud rates.
   // Possible baud rates:
-  // Low
-  // 9600, 57600 etc.
-  // High
-  // 115200, 250000
+  // 300: For extremely simple or low-power applications (e.g., weather stations).
+  // 4800: For very long cables or noisy environments.
+  // 9600: Default and reliable for basic Arduino projects. Debugging or basic monitoring
+  // 38400 or 57600: Medium-speed communication
+  // 115200: Real-time data logging
+  // 250000 or higher: High-speed data transfer
   Serial.begin(57600);
   // https://docs.arduino.cc/language-reference/en/variables/utilities/PROGMEM/
   Serial.println(F("Starting setuping..."));
+  // // For some reason, if you add this pin, the console starts to display the text
+  // pinMode(11, OUTPUT);
+  // Serial.print doesn't guarantee immediate transmission; it writes to the buffer, which is sent in the background.
+  // Use Serial.flush() to wait for the buffer to clear
+  // Serial.flush();
   delay(100);
-  Serial.flush();
-  // For some reason, if you add this pin, the console starts to display the text
-  pinMode(11, OUTPUT);
   // currentCalibrationValues();
   // tare();
   // Serial.println(()pow(10.0, 10));
@@ -78,10 +84,10 @@ void setup() {
     Serial.println(F("- Send 'm' to load calibration values from EEPROM"));
     Serial.println(F("- Send 'd' to use default calibration values"));
     
-    while (!Serial.available());
+    // while (!Serial.available());
 
     // get_command(command);
-    command = get_command();
+    command = get_command(true);
 
     if (!to_continue(true)){
       Serial.println(F("- Returned back. Use one of above commands"));
@@ -107,27 +113,33 @@ void setup() {
   }
   Serial.println(F("Setup complete. Ready for commands."));
   Serial.println(F("***"));
+  Serial.println(F("Available commands:"));
   Serial.println(F("- Send 'c' to change calibration values of load cells."));
   Serial.println(F("- Send 't' to set tare offset for all load cells."));
-  // Serial.print doesn't guarantee immediate transmission; it writes to the buffer, which is sent in the background.
-  // Use Serial.flush() to wait for the buffer to clear
-  Serial.flush();
+  // Serial.flush();
 }
+// y
 
 void loop() {
+  // Serial.println(F("ABOBA"));
   if (Serial.available() > 0) {
-    Serial.println(F("Commands:"));
-    Serial.println(F("- Send 'c' to change calibration values of load cells."));
-    Serial.println(F("- Send 't' to set tare offset for all load cells."));
     // char command[BUFFER_SIZE];
     char command;
     // get_command(command);
-    command = get_command();
-    if (to_continue(true)){
+    command = get_command(false);
+    // command = get_command(true);
+    // Serial.println(F("ABOBA 2"));
+    if ((is_command_special(command) == false) && (to_continue(true) == true)){
       // if (strcmp(command, "t") == 0) tare();
       // else if (strcmp(command,  "c") == 0) calibrate();
       if (command == 't') tare();
       else if (command == 'c') calibrate();
+      else {
+        Serial.println(F("UNKNOWN command"));
+        Serial.println(F("Available commands:"));
+        Serial.println(F("- Send 'c' to change calibration values of load cells."));
+        Serial.println(F("- Send 't' to set tare offset for all load cells."));
+      }
       // else if (command == 'e') changeSavedCalFactor(); //edit calibration value manually
     }
   }
@@ -195,22 +207,57 @@ void loop() {
 //     // return inputBuffer;
 //   }
 // }
+// d
 
 
-char get_command(){
+// y
+
+
+bool is_command_special(char command){
+  bool result;
+  result = (command == '\n' || command == ' ' || command == '\r');
+  // Serial.println();
+  return result;
+}
+// t
+
+
+// c
+
+
+char get_command(bool block_specials){
+  while (!Serial.available());
   // char command = Serial.read();
   char command;
   // while (command == '\n'){
+  // Serial.println(F("ABOBA 1.5"));
   while (Serial.available() > 0){
+    // Serial.println(F("ABOBA 1.7"));
     command = Serial.read();
+    // Serial.println(command);
+    // Serial.println(F("ABOBA 1.8"));
     // Wait for correct char
-    if (command == '\n' || command == ' ' || command == '\r'){
+    if ((block_specials == true) && (is_command_special(command) == true)){
       while(!Serial.available());
+    } 
+    // Serial.println();
+    // Serial.flush();
+    else {
+      // Skip other characters because correct command was get
+      while(Serial.available() > 0){
+        Serial.read();
+        // Serial.print(""); // I do not why but wth this line all wotk correctly
+        
+      };
     }
   }
-  Serial.print(F("Your input: '"));
-  Serial.print(command);
-  Serial.println(F("'."));
+  // Send info message about user input if command is not special symbol
+  if (is_command_special(command) == false){
+    Serial.println();
+    Serial.print(F("Your input: '"));
+    Serial.print(command);
+    Serial.println(F("'."));
+  }
   return command;
 }
 
@@ -221,8 +268,8 @@ bool to_continue(bool question) {
   // char command[BUFFER_SIZE];
   char command;
   while (true){
-    while (!Serial.available());
-    command = get_command();
+    // while (!Serial.available());
+    command = get_command(true);
     // get_command(command);
 
     // if (strcmp(command, "y") == 0){
@@ -282,9 +329,9 @@ void tare() {
   // char command[BUFFER_SIZE];
   char command;
   while(_resume == false){
-    while(!Serial.available());
+    // while(!Serial.available());
     // get_command(command);
-    command = get_command();
+    command = get_command(true);
 
     if (!to_continue(true)){
       Serial.println(F("- Returned back. Send 't' to continue."));
@@ -363,6 +410,7 @@ void calibrate() {
     // Wait for known weight input
     float knownWeight = 0;
     float calibrationValue = 1;
+    float calibratedWeight;
     bool _resume = false;
     while (_resume == false) {
       Serial.println();
@@ -371,12 +419,18 @@ void calibrate() {
       Serial.println(F(" and enter this weight (if your object is 1kg and you want to get data in grams then enter weight in grams, e.g., 1000, if you need kg - send 1, etc.)(known weight must be > 0): "));
       // scales.read(results);
 
-      while(!Serial.available());
-      knownWeight = Serial.parseFloat();
-      while(knownWeight == 0){
+      while (true) {
+        while(!Serial.available());
         knownWeight = Serial.parseFloat();
+        if (knownWeight == 0){
+          Serial.println(F("- Known weight must be > 0. Send correct known weight"));
+        } else {
+          break;
+        }
       }
       // if (knownWeight != 0){
+
+        Serial.println();
         Serial.print(F("Your knownWeight = "));
         Serial.println(knownWeight, 4);
         Serial.println(F("Calculation of calibrationValue(if calibrationValue correctly calculated then calibratedWeight = knownWeight):"));
@@ -390,10 +444,11 @@ void calibrate() {
         Serial.print(F("calibrationValue = notCalibratedWeight / knownWeight = "));
         Serial.println(calibrationValue, 4);
         Serial.print(F("calibratedWeight = notCalibratedWeight / calibrationValue = "));
-        Serial.println(notCalibratedWeight / calibrationValue, 4);
+        calibratedWeight = notCalibratedWeight / calibrationValue;
+        Serial.println(calibratedWeight, 4);
 
-        if (isnan(notCalibratedWeight / calibrationValue)){
-          Serial.print(F("FAILED: calibratedWeight is not a number(nan). Recheck that object is placed on load cell and you input its weight"));
+        if (isnan(calibratedWeight)){
+          Serial.println(F("FAILED: calibratedWeight is not a number(nan). Recheck that object is placed on load cell and you input its weight"));
         } else if (to_continue(true)){
           _resume = true;
         }

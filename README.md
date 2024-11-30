@@ -48,6 +48,10 @@
 
 ## DONE
 
+### 24_11_30
+
+- The command from the Arduino IDE console is sent with a newline character. In order to avoid the following command requests that are in the code, a character filter was added earlier, which prohibited sending some characters ('\n', '\r', ' ' '). But for some reason it didn't fully work: instead of a single character, a word or command could be sent with several special characters (e.g. “s\n ‘ or ’ s”), which were then used as the next command. Such characters are ignored and the code continues to wait for the correct command, but this is not correct in the case of receiving a command in a loop: when a character appears in the console, the loop is interrupted to receive the command, and if the command consists of special characters, the code is blocked until the correct command or any character is received. This was the case, but now special characters in the loop do not block execution, but are simply ignored
+
 ### 24_11_25
 
 - [x] Check "c" command
