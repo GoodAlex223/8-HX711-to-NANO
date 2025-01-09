@@ -48,6 +48,28 @@
 
 ## DONE
 
+### 25_01_08
+
+- Uppercased some global constants(SCALES, RESULTS, NUMBER_OF_READ, CALIBRATION_VALUES, CALIBRATION_EEPROM_ADDRESS)
+- `setup`: Added descriptions to command hints for user
+- `loop`: Added ability to load calibration values from EEPROM by command from user
+- Created `sendLoopCommandsHints` function to avoid repeating of command hints. Added to `setup` and `loop`
+- Created `is_scales_not_ready_warning` that use HX711MULTI.is_ready to send warning message and block code execution if HX711 load cells are busy or disconnected. Default behavior of HX711MULTI library is block of code without any message
+- Added `is_scales_not_ready_warning` before every use of HX711MULTI class to avoid code blocking without message
+    - `sendCalibratedData`: Added `is_scales_not_ready_warning` at start
+    - `tare`: Added `is_scales_not_ready_warning` before taring
+    - `calibrate`: Added `is_scales_not_ready_warning` before HX711MULTI.read
+- `get_command`: Moved empty line print to start of function to show that user input was get even if not processed
+- Replaced HX711MULTI.get_count call with already created constant CHANNEL_COUNT because under the hood HX711MULTI.get_count returns CHANNEL_COUNT from instance initialization
+    - `sendCalibratedData`
+    - `currentCalibrationValues`
+- `tare`:
+    - Decreased allowed tolerance from 10000(~24kg) to 420(1kg) for load cells taring
+- `calibrate`:
+    - Created `load_cell_number` variable that is printed to user as load cell index + 1. To replace repeated code
+    - Added number of load cell to fail message if `calibratedWeight` is nan
+- Created `saveCalibrationToEEPROM`. Used in tests and in `calibrate` function
+
 ### 24_11_30
 
 - The command from the Arduino IDE console is sent with a newline character. In order to avoid the following command requests that are in the code, a character filter was added earlier, which prohibited sending some characters ('\n', '\r', ' ' '). But for some reason it didn't fully work: instead of a single character, a word or command could be sent with several special characters (e.g. “s\n ‘ or ’ s”), which were then used as the next command. Such characters are ignored and the code continues to wait for the correct command, but this is not correct in the case of receiving a command in a loop: when a character appears in the console, the loop is interrupted to receive the command, and if the command consists of special characters, the code is blocked until the correct command or any character is received. This was the case, but now special characters in the loop do not block execution, but are simply ignored
